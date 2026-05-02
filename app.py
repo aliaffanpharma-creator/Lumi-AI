@@ -1,128 +1,79 @@
 import streamlit as st
-from PIL import Image
-import easyocr
 import google.generativeai as genai
-import os
-import random
+from PIL import Image
 
-# ---------------- CONFIG ----------------
-st.set_page_config(page_title="Lumi AI Pharmacist", layout="wide")
+# --- CONFIGURATION & DESIGN ---
+st.set_page_config(page_title="Lumi - AI Digital Pharmacist", layout="wide")
 
-# ---------------- GEMINI SETUP ----------------
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-1.5-flash")
+# Custom CSS to match "Design Tempelate.jpg"
+st.markdown("""
+    <style>
+    .main { background-color: #F8F9FE; }
+    .stSidebar { background-color: #FFFFFF; border-right: 1px solid #E0E0E0; }
+    .card { background-color: white; padding: 20px; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+    .risk-score { color: #FF4B4B; font-size: 48px; font-weight: bold; text-align: center; }
+    .sidebar-item { padding: 10px; font-size: 16px; color: #5F6368; }
+    .active-item { color: #6C5DD3; font-weight: bold; background: #F3F0FF; border-radius: 10px; }
+    </style>
+    """, unsafe_allow_html=True)
 
-def ask_gemini(prompt):
-    try:
-        response = model.generate_content(prompt)
-        return response.text
-    except:
-        return "AI response error. Please try again."
+# --- SIDEBAR NAVIGATION ---
+with st.sidebar:
+    st.image("https://via.placeholder.com/50", width=50) # Replace with your Lumi Logo
+    st.title("Lumi")
+    st.markdown('<p class="active-item">🏠 Home</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sidebar-item">🔍 Scan Prescription</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sidebar-item">💊 My Medicines</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sidebar-item">⚠️ Drug Interactions</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sidebar-item">🔔 Reminders</p>', unsafe_allow_html=True)
 
-# ---------------- OCR ----------------
-@st.cache_resource
-def load_ocr():
-    return easyocr.Reader(['en'])
+# --- MAIN INTERFACE ---
+col1, col2 = st.columns([2, 1])
 
-reader = load_ocr()
+with col1:
+    st.header("Hello, Ali 👋")
+    st.write("We're here to help you stay healthy.")
+    
+    # SCAN SECTION
+    with st.container():
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.subheader("Scan Prescription")
+        uploaded_file = st.file_uploader("Upload or capture your prescription", type=['jpg', 'png', 'jpeg'])
+        
+        if uploaded_file:
+            img = Image.open(uploaded_file)
+            st.image(img, caption="Prescription Uploaded", use_column_width=True)
+            if st.button("Analyze with Lumi AI ✨"):
+                st.info("Lumi is analyzing your prescription using Gemini 1.5 Flash...")
+                # Here we would call your Gemini Logic
+        st.markdown('</div>', unsafe_allow_html=True)
 
-def extract_text(image):
-    result = reader.readtext(image)
-    text = " ".join([res[1] for res in result])
-    return text
+    # RISK SCORE & TABLE (Placeholder data matching your design)
+    st.markdown("---")
+    res_col1, res_col2 = st.columns([1, 2])
+    with res_col1:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.write("Prescription Risk Score")
+        st.markdown('<p class="risk-score">7.5 <span style="font-size:20px; color:gray;">/10</span></p>', unsafe_allow_html=True)
+        st.write("Moderate Risk")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+    with res_col2:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.write("✨ AI Summary (In Simple Words)")
+        st.warning("Drug Interactions: 2 interactions found. Dose Adjustment: 1 medicine may need adjustment.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- BASIC MED EXTRACTION ----------------
-def extract_medicines(text):
-    lines = text.split()
-    meds = []
-    for word in lines:
-        if len(word) > 4:
-            meds.append(word)
-    return list(set(meds))[:5]
-
-# ---------------- RISK SCORE (SMARTER MOCK) ----------------
-def generate_risk():
-    score = round(random.uniform(5.5, 8.8), 1)
-    if score > 8:
-        level = "High Risk"
-    elif score > 6.5:
-        level = "Moderate Risk"
-    else:
-        level = "Low Risk"
-    return score, level
-
-# ---------------- SIDEBAR ----------------
-st.sidebar.title("✨ Lumi")
-menu = st.sidebar.radio("Navigation", [
-    "Home",
-    "Scan Prescription",
-    "AI Chat"
-])
-
-# ---------------- HOME ----------------
-if menu == "Home":
-    st.title("Hello, Ali 👋")
-    st.subheader("Your AI Digital Pharmacist")
-
-    st.info("Upload a prescription to analyze medicines, risks, and safety.")
-
-# ---------------- SCAN ----------------
-if menu == "Scan Prescription":
-    st.title("📄 Scan Prescription")
-
-    uploaded = st.file_uploader("Upload Prescription Image", type=["png","jpg","jpeg"])
-
-    if uploaded:
-        image = Image.open(uploaded)
-        st.image(image, caption="Uploaded Prescription", use_column_width=True)
-
-        with st.spinner("Reading prescription..."):
-            text = extract_text(image)
-
-        st.subheader("🧾 Extracted Text")
-        st.write(text if text else "No text detected")
-
-        meds = extract_medicines(text)
-
-        # Risk Score
-        score, level = generate_risk()
-        st.subheader("⚠️ Prescription Risk Score")
-        st.metric(label="Risk Score", value=f"{score}/10", delta=level)
-
-        # AI Explanation
-        st.subheader("🧠 AI Summary")
-        prompt = f"""
-        You are a medical assistant.
-        Explain these medicines simply and safely: {meds}
-
-        Include:
-        - What each medicine is for
-        - How to take it
-        - Any important warnings
-        Keep it simple for patients.
-        """
-        summary = ask_gemini(prompt)
-        st.write(summary)
-
-        # Medicine List
-        st.subheader("💊 Detected Medicines")
-        for m in meds:
-            st.write(f"• {m}")
-
-# ---------------- CHAT ----------------
-if menu == "AI Chat":
-    st.title("💬 Ask Lumi")
-
-    user_input = st.text_input("Ask about your medicine (English or Urdu)")
-
-    if user_input:
-        prompt = f"""
-        You are Lumi, a safe medical assistant.
-
-        Answer clearly and safely:
-        {user_input}
-
-        If unsure, advise consulting a doctor.
-        """
-        response = ask_gemini(prompt)
-        st.write(response)
+with col2:
+    # SCHEDULE & ADHERENCE
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.subheader("Today's Schedule")
+    st.write("✅ 8:00 AM - Metformin 500mg")
+    st.write("⏰ 1:00 PM - Amoxicillin 500mg")
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.markdown('<div class="card" style="margin-top:20px;">', unsafe_allow_html=True)
+    st.subheader("Adherence Progress")
+    st.progress(85)
+    st.write("85% - Great job!")
+    st.markdown('</div>', unsafe_allow_html=True)
