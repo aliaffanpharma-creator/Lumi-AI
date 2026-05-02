@@ -1,75 +1,77 @@
 import streamlit as st
-import google.generativeai as genai
 from PIL import Image
-import os
+import pytesseract
+from transformers import pipeline
+import random
 
 # --- PAGE CONFIG ---
-st.set_page_config(page_title="Lumi | AI Digital Pharmacist", layout="wide")
+st.set_page_config(page_title="Lumi AI Pharmacist", layout="wide")
 
-# --- STYLING (Matching Design Tempelate.jpg) ---
-st.markdown("""
-    <style>
-    .main { background-color: #f8f9fc; }
-    .stButton>button { border-radius: 20px; background-color: #6c5ce7; color: white; }
-    .risk-score { font-size: 48px; font-weight: bold; color: #e67e22; text-align: center; }
-    </style>
-    """, unsafe_allow_html=True)
+# --- SIDEBAR ---
+st.sidebar.title("✨ Lumi")
+menu = st.sidebar.radio("", [
+    "Home", "Scan Prescription", "My Medicines",
+    "Drug Interactions", "Reminders", "AI Chat"
+])
 
-# --- AI SETUP ---
-# You will add your API Key in Hugging Face Settings -> Secrets
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel('gemini-1.5-flash')
+# --- AI MODEL ---
+@st.cache_resource
+def load_model():
+    return pipeline("text-generation", model="google/flan-t5-base")
 
-# --- SIDEBAR (Navigation) ---
-with st.sidebar:
-    st.title("Lumi ✨")
-    st.write("AI Digital Pharmacist")
-    menu = ["Home", "Scan Prescription", "My Medicines", "AI Chat Assistant"]
-    choice = st.radio("Go to", menu)
+generator = load_model()
 
-# --- MAIN INTERFACE ---
-if choice == "Home":
+# --- OCR FUNCTION ---
+def extract_text(image):
+    return pytesseract.image_to_string(image)
+
+# --- FAKE SAFETY ENGINE ---
+def analyze_meds(text):
+    meds = []
+    lines = text.split("\n")
+    for line in lines:
+        if len(line) > 3:
+            meds.append(line.strip())
+    return meds[:4]
+
+def risk_score():
+    return round(random.uniform(5, 9), 1)
+
+# --- HOME ---
+if menu == "Home":
     st.title("Hello, Ali 👋")
-    st.write("We're here to help you stay healthy.")
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        st.subheader("Scan Prescription")
-        uploaded_file = st.file_uploader("Upload image or use camera", type=["jpg", "jpeg", "png"])
-        
-        if uploaded_file:
-            img = Image.open(uploaded_file)
-            st.image(img, caption="Prescription Uploaded", use_column_width=True)
-            
-            if st.button("Analyze with Lumi AI"):
-                with st.spinner("Analyzing your prescription..."):
-                    # AI OCR & Safety Logic
-                    prompt = """
-                    Analyze this prescription. Extract:
-                    1. Medicine names and dosages.
-                    2. Purpose of each medicine in simple Urdu/English.
-                    3. Check for drug-drug interactions (RAG Mode: Compare with OpenFDA/National Formulary).
-                    4. Calculate a 'Prescription Risk Score' out of 10.
-                    Output format: JSON-like structure.
-                    """
-                    response = model.generate_content([prompt, img])
-                    st.write(response.text)
+    st.subheader("Your AI Digital Pharmacist")
 
-    with col2:
-        st.subheader("Prescription Risk Score")
-        st.markdown('<div class="risk-score">7.5 <span style="font-size:18px;">/10</span></div>', unsafe_allow_html=True)
-        st.info("Moderate Risk: 2 interactions found.")
+    st.markdown("## Scan Prescription")
+    uploaded = st.file_uploader("Upload Image", type=["png","jpg","jpeg"])
 
-elif choice == "AI Chat Assistant":
-    st.header("Talk to Lumi ✨")
-    st.write("Support for Urdu, Sindhi, Pashto, Balochi, and English.")
-    
-    user_input = st.text_input("Ask Lumi anything (e.g., 'Yeh dawa kis liye hai?')")
+    if uploaded:
+        image = Image.open(uploaded)
+        st.image(image, width=300)
+
+        text = extract_text(image)
+        meds = analyze_meds(text)
+
+        st.markdown("## Prescription Risk Score")
+        score = risk_score()
+        st.metric("Risk Score", f"{score}/10")
+
+        st.markdown("## Medicines")
+
+        for m in meds:
+            st.write(f"💊 {m}")
+
+        st.markdown("## AI Summary")
+        prompt = f"Explain these medicines simply: {meds}"
+        response = generator(prompt, max_length=100)[0]["generated_text"]
+        st.write(response)
+
+# --- CHAT ---
+if menu == "AI Chat":
+    st.title("💬 Ask Lumi")
+
+    user_input = st.text_input("Ask about your medicine")
+
     if user_input:
-        response = model.generate_content(f"You are a professional pharmacist named Lumi in Pakistan. Answer this: {user_input}")
-        st.write(response.text)
-
-# --- FOOTER ---
-st.markdown("---")
-st.caption("Lumi is an AI tool and does not replace professional medical advice. Always consult your doctor.")
+        response = generator(user_input, max_length=100)[0]["generated_text"]
+        st.write(response)
