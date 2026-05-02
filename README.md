@@ -1,2 +1,10 @@
-# Lumi-AI
-Lumi AI: AI Digital Pharmacists
+---
+title: Lumi AI Pharmacist
+emoji: 💊
+colorFrom: blue
+colorTo: green
+sdk: streamlit
+app_file: app.py
+---
+
+# Lumi AI Pharmacist
