@@ -1,7 +1,6 @@
-streamlit
-pytesseract
+streamlit==1.35.0
+easyocr
 Pillow
-transformers
+google-generativeai
 torch
-sentencepiece
-supabase
+numpy
