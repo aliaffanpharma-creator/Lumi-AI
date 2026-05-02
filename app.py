@@ -1,77 +1,128 @@
 import streamlit as st
 from PIL import Image
-import pytesseract
-from transformers import pipeline
+import easyocr
+import google.generativeai as genai
+import os
 import random
 
-# --- PAGE CONFIG ---
+# ---------------- CONFIG ----------------
 st.set_page_config(page_title="Lumi AI Pharmacist", layout="wide")
 
-# --- SIDEBAR ---
+# ---------------- GEMINI SETUP ----------------
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel("gemini-1.5-flash")
+
+def ask_gemini(prompt):
+    try:
+        response = model.generate_content(prompt)
+        return response.text
+    except:
+        return "AI response error. Please try again."
+
+# ---------------- OCR ----------------
+@st.cache_resource
+def load_ocr():
+    return easyocr.Reader(['en'])
+
+reader = load_ocr()
+
+def extract_text(image):
+    result = reader.readtext(image)
+    text = " ".join([res[1] for res in result])
+    return text
+
+# ---------------- BASIC MED EXTRACTION ----------------
+def extract_medicines(text):
+    lines = text.split()
+    meds = []
+    for word in lines:
+        if len(word) > 4:
+            meds.append(word)
+    return list(set(meds))[:5]
+
+# ---------------- RISK SCORE (SMARTER MOCK) ----------------
+def generate_risk():
+    score = round(random.uniform(5.5, 8.8), 1)
+    if score > 8:
+        level = "High Risk"
+    elif score > 6.5:
+        level = "Moderate Risk"
+    else:
+        level = "Low Risk"
+    return score, level
+
+# ---------------- SIDEBAR ----------------
 st.sidebar.title("✨ Lumi")
-menu = st.sidebar.radio("", [
-    "Home", "Scan Prescription", "My Medicines",
-    "Drug Interactions", "Reminders", "AI Chat"
+menu = st.sidebar.radio("Navigation", [
+    "Home",
+    "Scan Prescription",
+    "AI Chat"
 ])
 
-# --- AI MODEL ---
-@st.cache_resource
-def load_model():
-    return pipeline("text-generation", model="google/flan-t5-base")
-
-generator = load_model()
-
-# --- OCR FUNCTION ---
-def extract_text(image):
-    return pytesseract.image_to_string(image)
-
-# --- FAKE SAFETY ENGINE ---
-def analyze_meds(text):
-    meds = []
-    lines = text.split("\n")
-    for line in lines:
-        if len(line) > 3:
-            meds.append(line.strip())
-    return meds[:4]
-
-def risk_score():
-    return round(random.uniform(5, 9), 1)
-
-# --- HOME ---
+# ---------------- HOME ----------------
 if menu == "Home":
     st.title("Hello, Ali 👋")
     st.subheader("Your AI Digital Pharmacist")
 
-    st.markdown("## Scan Prescription")
-    uploaded = st.file_uploader("Upload Image", type=["png","jpg","jpeg"])
+    st.info("Upload a prescription to analyze medicines, risks, and safety.")
+
+# ---------------- SCAN ----------------
+if menu == "Scan Prescription":
+    st.title("📄 Scan Prescription")
+
+    uploaded = st.file_uploader("Upload Prescription Image", type=["png","jpg","jpeg"])
 
     if uploaded:
         image = Image.open(uploaded)
-        st.image(image, width=300)
+        st.image(image, caption="Uploaded Prescription", use_column_width=True)
 
-        text = extract_text(image)
-        meds = analyze_meds(text)
+        with st.spinner("Reading prescription..."):
+            text = extract_text(image)
 
-        st.markdown("## Prescription Risk Score")
-        score = risk_score()
-        st.metric("Risk Score", f"{score}/10")
+        st.subheader("🧾 Extracted Text")
+        st.write(text if text else "No text detected")
 
-        st.markdown("## Medicines")
+        meds = extract_medicines(text)
 
+        # Risk Score
+        score, level = generate_risk()
+        st.subheader("⚠️ Prescription Risk Score")
+        st.metric(label="Risk Score", value=f"{score}/10", delta=level)
+
+        # AI Explanation
+        st.subheader("🧠 AI Summary")
+        prompt = f"""
+        You are a medical assistant.
+        Explain these medicines simply and safely: {meds}
+
+        Include:
+        - What each medicine is for
+        - How to take it
+        - Any important warnings
+        Keep it simple for patients.
+        """
+        summary = ask_gemini(prompt)
+        st.write(summary)
+
+        # Medicine List
+        st.subheader("💊 Detected Medicines")
         for m in meds:
-            st.write(f"💊 {m}")
+            st.write(f"• {m}")
 
-        st.markdown("## AI Summary")
-        prompt = f"Explain these medicines simply: {meds}"
-        response = generator(prompt, max_length=100)[0]["generated_text"]
-        st.write(response)
-
-# --- CHAT ---
+# ---------------- CHAT ----------------
 if menu == "AI Chat":
     st.title("💬 Ask Lumi")
 
-    user_input = st.text_input("Ask about your medicine")
+    user_input = st.text_input("Ask about your medicine (English or Urdu)")
 
     if user_input:
-        response = generator(user_input, max_length=100)[0]["generated_text"]
+        prompt = f"""
+        You are Lumi, a safe medical assistant.
+
+        Answer clearly and safely:
+        {user_input}
+
+        If unsure, advise consulting a doctor.
+        """
+        response = ask_gemini(prompt)
         st.write(response)
