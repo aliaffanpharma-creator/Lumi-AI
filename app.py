@@ -1,79 +1,61 @@
 import streamlit as st
 import google.generativeai as genai
 from PIL import Image
+import pandas as pd
 
-# --- CONFIGURATION & DESIGN ---
-st.set_page_config(page_title="Lumi - AI Digital Pharmacist", layout="wide")
+# Page Config to match mockup layout
+st.set_page_config(page_title="Lumi | AI Digital Pharmacist", layout="wide")
 
-# Custom CSS to match "Design Tempelate.jpg"
-st.markdown("""
-    <style>
-    .main { background-color: #F8F9FE; }
-    .stSidebar { background-color: #FFFFFF; border-right: 1px solid #E0E0E0; }
-    .card { background-color: white; padding: 20px; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-    .risk-score { color: #FF4B4B; font-size: 48px; font-weight: bold; text-align: center; }
-    .sidebar-item { padding: 10px; font-size: 16px; color: #5F6368; }
-    .active-item { color: #6C5DD3; font-weight: bold; background: #F3F0FF; border-radius: 10px; }
-    </style>
-    """, unsafe_allow_html=True)
+# Link to CSS
+with open("style.css") as f:
+    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-# --- SIDEBAR NAVIGATION ---
-with st.sidebar:
-    st.image("https://via.placeholder.com/50", width=50) # Replace with your Lumi Logo
-    st.title("Lumi")
-    st.markdown('<p class="active-item">🏠 Home</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sidebar-item">🔍 Scan Prescription</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sidebar-item">💊 My Medicines</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sidebar-item">⚠️ Drug Interactions</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sidebar-item">🔔 Reminders</p>', unsafe_allow_html=True)
+# Sidebar Navigation (Replicating Design Tempelate.jpg)
+st.sidebar.image("https://cdn-icons-png.flaticon.com/512/883/883360.png", width=50) # Placeholder Logo
+st.sidebar.title("Lumi")
+st.sidebar.markdown("---")
+menu = ["Home", "Scan Prescription", "My Medicines", "Drug Interactions", "Reminders", "Patient Profile"]
+choice = st.sidebar.radio("Menu", menu)
 
-# --- MAIN INTERFACE ---
-col1, col2 = st.columns([2, 1])
+# API Setup - (You'll add your key in Streamlit Secrets)
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-with col1:
-    st.header("Hello, Ali 👋")
+if choice == "Home":
+    st.title("Hello, Ali 👋")
     st.write("We're here to help you stay healthy.")
-    
-    # SCAN SECTION
-    with st.container():
-        st.markdown('<div class="card">', unsafe_allow_html=True)
+
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
         st.subheader("Scan Prescription")
-        uploaded_file = st.file_uploader("Upload or capture your prescription", type=['jpg', 'png', 'jpeg'])
+        uploaded_file = st.file_uploader("Upload or capture your prescription", type=['jpg', 'jpeg', 'png'])
         
         if uploaded_file:
             img = Image.open(uploaded_file)
             st.image(img, caption="Prescription Uploaded", use_column_width=True)
-            if st.button("Analyze with Lumi AI ✨"):
-                st.info("Lumi is analyzing your prescription using Gemini 1.5 Flash...")
-                # Here we would call your Gemini Logic
-        st.markdown('</div>', unsafe_allow_html=True)
+            
+            if st.button("Analyze with Lumi AI"):
+                with st.spinner("Lumi is analyzing safety data..."):
+                    # The Prompt: Forcing precision and RAG-style grounding
+                    prompt = """
+                    You are Lumi, a digital pharmacist. Analyze this prescription image. 
+                    1. Extract medicine names and dosages.
+                    2. Provide a 'Prescription Risk Score' out of 10.
+                    3. Check interactions using global standards (OpenFDA/PNF).
+                    4. Explain each medicine in simple English and Urdu.
+                    If any text is blurry, state 'UNCLEAR'.
+                    Format the output as a JSON-like structure for a dashboard.
+                    """
+                    response = model.generate_content([prompt, img])
+                    st.success("Analysis Complete!")
+                    st.markdown(response.text)
 
-    # RISK SCORE & TABLE (Placeholder data matching your design)
-    st.markdown("---")
-    res_col1, res_col2 = st.columns([1, 2])
-    with res_col1:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.write("Prescription Risk Score")
-        st.markdown('<p class="risk-score">7.5 <span style="font-size:20px; color:gray;">/10</span></p>', unsafe_allow_html=True)
-        st.write("Moderate Risk")
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-    with res_col2:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.write("✨ AI Summary (In Simple Words)")
-        st.warning("Drug Interactions: 2 interactions found. Dose Adjustment: 1 medicine may need adjustment.")
-        st.markdown('</div>', unsafe_allow_html=True)
+    with col2:
+        st.markdown("### Today's Schedule")
+        st.info("8:00 AM - Metformin 500mg (Taken)")
+        st.warning("1:00 PM - Amoxicillin 500mg (Due)")
 
-with col2:
-    # SCHEDULE & ADHERENCE
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.subheader("Today's Schedule")
-    st.write("✅ 8:00 AM - Metformin 500mg")
-    st.write("⏰ 1:00 PM - Amoxicillin 500mg")
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="card" style="margin-top:20px;">', unsafe_allow_html=True)
-    st.subheader("Adherence Progress")
-    st.progress(85)
-    st.write("85% - Great job!")
-    st.markdown('</div>', unsafe_allow_html=True)
+# Footer Disclaimer (Safety First)
+st.markdown("---")
+st.caption("⚠️ Lumi is an AI assistant and not a replacement for professional medical advice. Always consult your doctor.")
