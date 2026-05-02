@@ -1,5 +1,7 @@
 streamlit
-google-generativeai
-pandas
-pillow
-python-dotenv
+pytesseract
+Pillow
+transformers
+torch
+sentencepiece
+supabase
