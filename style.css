@@ -1,0 +1,21 @@
+/* Custom CSS to match Design Tempelate.jpg */
+.main {
+    background-color: #F8F9FE;
+}
+.stSidebar {
+    background-color: #FFFFFF;
+    border-right: 1px solid #E0E0E0;
+}
+.risk-card {
+    background-color: white;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    text-align: center;
+}
+.stButton>button {
+    background-color: #6C5DD3;
+    color: white;
+    border-radius: 10px;
+    width: 100%;
+}
